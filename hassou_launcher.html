@@ -1,0 +1,640 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>発送ランチャー | hima engineering</title>
+<style>
+  :root{
+    --bg:#14161a; --panel:#1d2026; --panel2:#23262d; --line:#31353d;
+    --text:#eceef1; --sub:#9aa1ab;
+    --accent:#e8c34a;
+    --mercari:#ff5b5b; --yahoo:#f2b21b; --booth:#4aa8f0;
+    --ok:#4fc58a; --radius:14px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;
+    min-height:100vh; padding-bottom:110px;
+  }
+  header{
+    padding:20px 18px 14px; border-bottom:1px solid var(--line);
+    display:flex; align-items:center; gap:10px;
+  }
+  header h1{font-size:18px;font-weight:800;letter-spacing:.04em}
+  header h1 .flag{color:var(--accent)}
+  header .count{font-size:12px;color:var(--sub);margin-left:auto}
+  #syncBadge{
+    font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;
+    border:1px solid var(--line);color:var(--sub);cursor:pointer;background:transparent;
+  }
+  #syncBadge.on{color:var(--ok);border-color:var(--ok)}
+  #syncBadge.err{color:#ff8a8a;border-color:#ff8a8a}
+
+  nav{display:flex;gap:8px;padding:12px 18px}
+  nav button{
+    flex:1;padding:9px 0;border-radius:999px;border:1px solid var(--line);
+    background:transparent;color:var(--sub);font-size:13px;font-weight:700;cursor:pointer;
+  }
+  nav button.active{background:var(--accent);border-color:var(--accent);color:#14161a}
+
+  main{padding:4px 14px 0}
+  .card{
+    background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--line);
+    border-radius:var(--radius);padding:14px 14px 12px;margin-bottom:10px;
+  }
+  .card.mercari{border-left-color:var(--mercari)}
+  .card.yahoo{border-left-color:var(--yahoo)}
+  .card.booth{border-left-color:var(--booth)}
+  .card .top{display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap}
+  .badge{font-size:11px;font-weight:800;padding:3px 9px;border-radius:999px;color:#14161a}
+  .badge.mercari{background:var(--mercari)}
+  .badge.yahoo{background:var(--yahoo)}
+  .badge.booth{background:var(--booth)}
+  .card .mng{
+    font-family:ui-monospace,'SF Mono',Menlo,monospace;
+    font-size:11px;font-weight:700;color:var(--accent);
+    border:1px solid var(--line);border-radius:6px;padding:2px 7px;
+  }
+  .card .date{font-size:11px;color:var(--sub);margin-left:auto}
+  .card .body{display:flex;gap:12px;margin-bottom:10px;align-items:flex-start}
+  .card .thumb{
+    width:64px;height:64px;flex:none;border-radius:10px;object-fit:cover;
+    border:1px solid var(--line);background:var(--panel2);
+  }
+  .card .name{font-size:15px;font-weight:700;line-height:1.45;word-break:break-all;flex:1}
+  .card .actions{display:flex;gap:8px}
+  .btn{border:none;border-radius:10px;cursor:pointer;font-size:14px;font-weight:800;padding:12px 0}
+  .btn.qr{
+    flex:2.2;background:var(--accent);color:#14161a;
+    display:flex;align-items:center;justify-content:center;gap:6px;text-decoration:none;
+  }
+  .btn.done{flex:1;background:var(--panel2);color:var(--ok);border:1px solid var(--line)}
+  .btn.undo{flex:1;background:var(--panel2);color:var(--sub);border:1px solid var(--line)}
+  .btn.del{flex:.6;background:transparent;color:var(--sub);border:1px solid var(--line)}
+  .empty{text-align:center;color:var(--sub);font-size:13px;line-height:2;padding:48px 20px}
+  .empty b{color:var(--text)}
+
+  #fab{
+    position:fixed;right:18px;bottom:24px;z-index:5;
+    width:58px;height:58px;border-radius:50%;border:none;cursor:pointer;
+    background:var(--accent);color:#14161a;font-size:30px;font-weight:700;line-height:0;
+    box-shadow:0 6px 18px rgba(0,0,0,.45);
+  }
+  .sheet{
+    position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10;
+    display:none;align-items:flex-end;
+  }
+  .sheet.open{display:flex}
+  .sheet .inner{
+    background:var(--panel);width:100%;max-height:88vh;overflow-y:auto;
+    border-radius:18px 18px 0 0;padding:20px 18px calc(20px + env(safe-area-inset-bottom));
+    border-top:1px solid var(--line);
+  }
+  .sheet h2{font-size:15px;font-weight:800;margin-bottom:14px}
+  .field{margin-bottom:12px}
+  .field label{display:block;font-size:12px;color:var(--sub);margin-bottom:5px;font-weight:700}
+  .field input,.field select{
+    width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);
+    background:var(--panel2);color:var(--text);font-size:15px;
+  }
+  .field input:focus,.field select:focus{outline:2px solid var(--accent);outline-offset:-1px}
+  .with-paste{display:flex;gap:8px}
+  .with-paste input{flex:1}
+  .paste-mini{
+    flex:none;width:48px;border-radius:10px;border:1px solid var(--line);
+    background:var(--panel2);color:var(--text);font-size:17px;cursor:pointer;
+  }
+  .hint{font-size:11px;color:var(--sub);margin-top:5px;line-height:1.6}
+  .hint.detected{color:var(--ok);font-weight:700}
+  .sheet-actions{display:flex;gap:10px;margin-top:16px}
+  .sheet-actions .btn{flex:1}
+  .btn.save{background:var(--accent);color:#14161a}
+  .btn.cancel{background:var(--panel2);color:var(--sub);border:1px solid var(--line)}
+  .errmsg{color:#ff8a8a;font-size:12px;margin-top:8px;display:none}
+  .photo-row{display:flex;gap:10px;align-items:center}
+  .photo-btn{
+    padding:11px 14px;border-radius:10px;border:1px dashed var(--line);
+    background:var(--panel2);color:var(--sub);font-size:13px;font-weight:700;cursor:pointer;
+  }
+  #photoPreview{
+    width:56px;height:56px;border-radius:10px;object-fit:cover;
+    border:1px solid var(--line);display:none;
+  }
+  #photoClear{
+    display:none;background:transparent;border:none;color:var(--sub);
+    font-size:12px;cursor:pointer;text-decoration:underline;
+  }
+  @media (min-width:640px){
+    body{max-width:520px;margin:0 auto}
+    .sheet .inner{max-width:520px;margin:0 auto}
+  }
+</style>
+
+<header>
+  <h1><span class="flag">■</span> 発送ランチャー</h1>
+  <button id="syncBadge" title="同期設定">未同期</button>
+  <span class="count" id="count"></span>
+</header>
+
+<nav>
+  <button id="tabPending" class="active">未発送</button>
+  <button id="tabDone">発送済み</button>
+</nav>
+
+<main id="list"></main>
+
+<button id="fab" aria-label="発送を追加">+</button>
+
+<!-- 追加シート -->
+<div class="sheet" id="sheetAdd">
+  <div class="inner">
+    <h2>発送を追加</h2>
+    <div class="field">
+      <label for="inUrl">取引ページのURL</label>
+      <div class="with-paste">
+        <input id="inUrl" inputmode="url" placeholder="メルカリ / ヤフオク / BOOTH">
+        <button type="button" class="paste-mini" id="urlPaste" title="クリップボードから貼り付け">📋</button>
+      </div>
+      <div class="hint" id="detectHint">共有メニュー等でURLをコピー →「📋」で貼り付け。サイトは自動判定</div>
+    </div>
+    <div class="field">
+      <label for="inPlatform">販売サイト</label>
+      <select id="inPlatform">
+        <option value="">URLから自動判定</option>
+        <option value="mercari">メルカリ</option>
+        <option value="yahoo">ヤフオク</option>
+        <option value="booth">BOOTH</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="inName">商品名(メモ)</label>
+      <input id="inName" placeholder="例:Z34 スカルカップホルダー 黒">
+    </div>
+    <div class="field">
+      <label for="inMng">管理ナンバー(任意)</label>
+      <input id="inMng" placeholder="例:HE-2607-013">
+      <div class="hint">帳簿と照合する自分用の番号。カードに表示されます</div>
+    </div>
+    <div class="field">
+      <label>商品写真(任意)</label>
+      <div class="photo-row">
+        <button type="button" class="photo-btn" id="photoPaste">📋 貼り付け</button>
+        <button type="button" class="photo-btn" id="photoPick">📷 選ぶ</button>
+        <img id="photoPreview" alt="選択した写真">
+        <button type="button" id="photoClear">写真を外す</button>
+      </div>
+      <input type="file" id="inPhoto" accept="image/*" hidden>
+      <div class="hint" id="photoHint">商品画面で画像を長押し→コピー→「📋 貼り付け」。自動で縮小して保存</div>
+    </div>
+    <div class="errmsg" id="err"></div>
+    <div class="sheet-actions">
+      <button class="btn cancel" id="btnCancel">閉じる</button>
+      <button class="btn save" id="btnSave">追加する</button>
+    </div>
+  </div>
+</div>
+
+<!-- 同期設定シート -->
+<div class="sheet" id="sheetSync">
+  <div class="inner">
+    <h2>PC・スマホ間の同期(GitHub Gist)</h2>
+    <div class="field">
+      <label>① トークンを用意</label>
+      <a class="photo-btn" style="display:inline-block;text-decoration:none"
+         href="https://github.com/settings/tokens/new?scopes=gist&description=hassou-launcher"
+         target="_blank" rel="noopener">GitHubでトークンを作成 →</a>
+      <div class="hint">gist権限が選択済みの発行ページが開きます。「Generate token」を押してコピーするだけ。</div>
+    </div>
+    <div class="field">
+      <label for="inToken">② トークンを貼り付け</label>
+      <div class="with-paste">
+        <input id="inToken" type="password" placeholder="ghp_...">
+        <button type="button" class="paste-mini" id="tokenPaste" title="クリップボードから貼り付け">📋</button>
+      </div>
+      <div class="hint">トークンはこの端末のブラウザ内にのみ保存されます。</div>
+    </div>
+    <div class="field">
+      <label for="inGistId">Gist ID(通常は触らなくてOK)</label>
+      <input id="inGistId" placeholder="空のまま保存すると自動で新規作成">
+    </div>
+    <div class="errmsg" id="syncErr"></div>
+    <div class="sheet-actions">
+      <button class="btn cancel" id="btnSyncCancel">閉じる</button>
+      <button class="btn save" id="btnSyncSave">保存して同期</button>
+    </div>
+    <div id="qrArea" style="display:none;margin-top:18px;padding-top:16px;border-top:1px solid var(--line)">
+      <label style="display:block;font-size:12px;color:var(--sub);font-weight:700;margin-bottom:8px">③ スマホで読み取るだけで設定完了</label>
+      <div id="qrBox" style="background:#fff;padding:12px;border-radius:12px;width:fit-content"></div>
+      <div class="hint" style="margin-top:8px">
+        スマホのカメラでこのQRを読むと、トークンとGist IDが設定済みの状態でこのページが開きます。<br>
+        ⚠ QRにはトークンが含まれます。画面を人に見せたりスクショを共有したりしないでください。
+      </div>
+      <button type="button" class="photo-btn" id="copySetupLink" style="margin-top:10px">設定リンクをコピー(QRの代わり)</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+const CACHE_KEY = 'shipments-cache-v1';
+const TOKEN_KEY = 'gh-token';
+const GIST_KEY  = 'gh-gist-id';
+const GIST_FILE = 'shipments.json';
+const PLATFORM = {
+  mercari:{label:'メルカリ', cls:'mercari'},
+  yahoo:{label:'ヤフオク', cls:'yahoo'},
+  booth:{label:'BOOTH', cls:'booth'}
+};
+let items = [];
+let tab = 'pending';
+
+// ---- ローカル保存(この端末のキャッシュ) ----
+function lsGet(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+function lsSet(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
+
+// ---- Gist同期 ----
+function ghHeaders(){
+  return {
+    'Authorization': 'Bearer ' + lsGet(TOKEN_KEY),
+    'Accept': 'application/vnd.github+json',
+    'Content-Type': 'application/json'
+  };
+}
+function syncEnabled(){ return !!(lsGet(TOKEN_KEY) && lsGet(GIST_KEY)); }
+
+function setSyncBadge(state, text){
+  const b = document.getElementById('syncBadge');
+  b.className = state; b.textContent = text;
+}
+
+async function gistPull(){
+  const id = lsGet(GIST_KEY);
+  const res = await fetch('https://api.github.com/gists/' + id, { headers: ghHeaders() });
+  if(!res.ok) throw new Error('gist取得失敗 ' + res.status);
+  const g = await res.json();
+  const f = g.files && g.files[GIST_FILE];
+  if(!f) return [];
+  let content = f.content;
+  if(f.truncated){
+    const raw = await fetch(f.raw_url);
+    content = await raw.text();
+  }
+  try{ return JSON.parse(content); }catch(e){ return []; }
+}
+
+async function gistPush(){
+  const id = lsGet(GIST_KEY);
+  const body = JSON.stringify({ files: { [GIST_FILE]: { content: JSON.stringify(items) } } });
+  const res = await fetch('https://api.github.com/gists/' + id, {
+    method:'PATCH', headers: ghHeaders(), body
+  });
+  if(!res.ok) throw new Error('gist更新失敗 ' + res.status);
+}
+
+async function gistCreate(){
+  const body = JSON.stringify({
+    description: 'hima engineering 発送ランチャー データ',
+    public: false,
+    files: { [GIST_FILE]: { content: JSON.stringify(items) } }
+  });
+  const res = await fetch('https://api.github.com/gists', {
+    method:'POST', headers: ghHeaders(), body
+  });
+  if(!res.ok) throw new Error('gist作成失敗 ' + res.status);
+  const g = await res.json();
+  return g.id;
+}
+
+let pushTimer = null;
+function schedulePush(){
+  if(!syncEnabled()) return;
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(async ()=>{
+    try{ await gistPush(); setSyncBadge('on','✓ 同期済み'); }
+    catch(e){ setSyncBadge('err','同期エラー'); console.error(e); }
+  }, 800);
+}
+
+async function saveAll(){
+  lsSet(CACHE_KEY, JSON.stringify(items));
+  setSyncBadge(syncEnabled() ? 'on' : '', syncEnabled() ? '同期中…' : '未同期');
+  schedulePush();
+}
+
+async function load(){
+  const cache = lsGet(CACHE_KEY);
+  items = cache ? JSON.parse(cache) : [];
+  render();
+  if(syncEnabled()){
+    setSyncBadge('on','同期中…');
+    try{
+      items = await gistPull();
+      lsSet(CACHE_KEY, JSON.stringify(items));
+      setSyncBadge('on','✓ 同期済み');
+      render();
+    }catch(e){
+      setSyncBadge('err','同期エラー');
+      console.error(e);
+    }
+  }else{
+    setSyncBadge('','未同期');
+  }
+}
+
+// ---- 表示 ----
+function detectPlatform(url){
+  try{
+    const h = new URL(url).hostname;
+    if(h.includes('mercari')) return 'mercari';
+    if(h.includes('auctions.yahoo') || h.includes('paypayfleamarket')) return 'yahoo';
+    if(h.includes('booth.pm')) return 'booth';
+  }catch(e){}
+  return null;
+}
+function fmtDate(ts){ const d=new Date(ts); return (d.getMonth()+1)+'/'+d.getDate(); }
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+function render(){
+  const list = document.getElementById('list');
+  const pending = items.filter(i=>!i.done);
+  const done = items.filter(i=>i.done);
+  document.getElementById('count').textContent = '未発送 ' + pending.length + ' 件';
+  document.getElementById('tabPending').classList.toggle('active', tab==='pending');
+  document.getElementById('tabDone').classList.toggle('active', tab==='done');
+
+  const rows = (tab==='pending' ? pending : done);
+  if(rows.length===0){
+    list.innerHTML = tab==='pending'
+      ? '<div class="empty"><b>未発送はありません</b><br>右下の + から取引URLを貼り付けて追加。<br>コンビニではカードの「QR画面を開く」を押すだけ。</div>'
+      : '<div class="empty">発送済みはまだありません</div>';
+    return;
+  }
+  list.innerHTML = rows.map(i=>{
+    const p = PLATFORM[i.platform];
+    const qrBtn = '<a class="btn qr" href="'+escapeHtml(i.url)+'" target="_blank" rel="noopener">QR画面を開く →</a>';
+    const doneBtn = i.done
+      ? '<button class="btn undo" data-act="undo" data-id="'+i.id+'">戻す</button>'
+      : '<button class="btn done" data-act="done" data-id="'+i.id+'">✓ 発送済み</button>';
+    const delBtn = '<button class="btn del" data-act="del" data-id="'+i.id+'" aria-label="削除">🗑</button>';
+    return '<div class="card '+p.cls+'">'
+      + '<div class="top"><span class="badge '+p.cls+'">'+p.label+'</span>'
+      + (i.mng ? '<span class="mng">'+escapeHtml(i.mng)+'</span>' : '')
+      + '<span class="date">'+ (i.done ? '発送 '+fmtDate(i.doneAt) : '追加 '+fmtDate(i.createdAt)) +'</span></div>'
+      + '<div class="body">'
+      + (i.photo ? '<img class="thumb" src="'+i.photo+'" alt="">' : '')
+      + '<div class="name">'+escapeHtml(i.name || '(商品名なし)')+'</div>'
+      + '</div>'
+      + '<div class="actions">'+ (i.done ? doneBtn+delBtn : qrBtn+doneBtn) +'</div>'
+      + '</div>';
+  }).join('');
+}
+
+document.getElementById('list').addEventListener('click', async e=>{
+  const b = e.target.closest('button[data-act]');
+  if(!b) return;
+  const id = b.dataset.id;
+  const it = items.find(x=>String(x.id)===id);
+  if(!it && b.dataset.act!=='del') return;
+  if(b.dataset.act==='done'){ it.done=true; it.doneAt=Date.now(); }
+  if(b.dataset.act==='undo'){ it.done=false; delete it.doneAt; }
+  if(b.dataset.act==='del'){ items = items.filter(x=>String(x.id)!==id); }
+  await saveAll(); render();
+});
+
+document.getElementById('tabPending').onclick = ()=>{tab='pending';render();};
+document.getElementById('tabDone').onclick = ()=>{tab='done';render();};
+
+// ---- 追加シート ----
+const sheetAdd = document.getElementById('sheetAdd');
+document.getElementById('fab').onclick = ()=>{ sheetAdd.classList.add('open'); };
+document.getElementById('btnCancel').onclick = ()=> sheetAdd.classList.remove('open');
+sheetAdd.addEventListener('click', e=>{ if(e.target===sheetAdd) sheetAdd.classList.remove('open'); });
+
+function updateDetectHint(url){
+  const p = detectPlatform(url);
+  const hint = document.getElementById('detectHint');
+  if(p){
+    hint.textContent = '✓ ' + PLATFORM[p].label + ' のURLとして認識';
+    hint.className = 'hint detected';
+    document.getElementById('inPlatform').value = p;
+  }else{
+    hint.textContent = '共有メニュー等でURLをコピー →「📋」で貼り付け。サイトは自動判定';
+    hint.className = 'hint';
+  }
+}
+document.getElementById('inUrl').addEventListener('input', e=> updateDetectHint(e.target.value.trim()));
+
+document.getElementById('urlPaste').onclick = async ()=>{
+  if(!navigator.clipboard || !navigator.clipboard.readText){
+    document.getElementById('detectHint').textContent = 'このブラウザは貼り付け非対応です。手入力してください';
+    return;
+  }
+  try{
+    const t = (await navigator.clipboard.readText()).trim();
+    if(t){
+      document.getElementById('inUrl').value = t;
+      updateDetectHint(t);
+    }
+  }catch(e){
+    document.getElementById('detectHint').textContent = '貼り付けが許可されませんでした';
+  }
+};
+
+// ---- 写真 ----
+let photoData = null;
+function photoMsg(text, ok){
+  const h = document.getElementById('photoHint');
+  h.textContent = text;
+  h.className = ok ? 'hint detected' : 'hint';
+}
+function setPhotoFromBlob(blob){
+  const img = new Image();
+  const url = URL.createObjectURL(blob);
+  img.onload = ()=>{
+    const MAX = 240;
+    const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+    const c = document.createElement('canvas');
+    c.width = Math.round(img.width * scale);
+    c.height = Math.round(img.height * scale);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    photoData = c.toDataURL('image/jpeg', 0.72);
+    const pv = document.getElementById('photoPreview');
+    pv.src = photoData; pv.style.display='block';
+    document.getElementById('photoClear').style.display='inline';
+    URL.revokeObjectURL(url);
+  };
+  img.onerror = ()=>{ URL.revokeObjectURL(url); photoMsg('画像として読み込めませんでした'); };
+  img.src = url;
+}
+document.getElementById('photoPick').onclick = ()=> document.getElementById('inPhoto').click();
+document.getElementById('inPhoto').addEventListener('change', e=>{
+  const f = e.target.files && e.target.files[0];
+  if(f) setPhotoFromBlob(f);
+  e.target.value = '';
+});
+document.getElementById('photoPaste').onclick = async ()=>{
+  if(!navigator.clipboard || !navigator.clipboard.read){
+    photoMsg('このブラウザは貼り付け非対応です。「📷 選ぶ」を使ってください');
+    return;
+  }
+  try{
+    const clip = await navigator.clipboard.read();
+    for(const item of clip){
+      const type = item.types.find(t=>t.startsWith('image/'));
+      if(type){
+        setPhotoFromBlob(await item.getType(type));
+        photoMsg('✓ 貼り付けました', true);
+        return;
+      }
+    }
+    photoMsg('クリップボードに画像がありません。商品画像を長押し→「コピー」してから押してください');
+  }catch(e){
+    photoMsg('貼り付けが許可されませんでした。「📷 選ぶ」を使ってください');
+  }
+};
+document.addEventListener('paste', e=>{
+  if(!sheetAdd.classList.contains('open')) return;
+  const files = e.clipboardData && e.clipboardData.files;
+  if(files && files.length && files[0].type.startsWith('image/')){
+    e.preventDefault();
+    setPhotoFromBlob(files[0]);
+    photoMsg('✓ 貼り付けました', true);
+  }
+});
+document.getElementById('photoClear').onclick = ()=>{
+  photoData = null;
+  document.getElementById('photoPreview').style.display='none';
+  document.getElementById('photoClear').style.display='none';
+  photoMsg('商品画面で画像を長押し→コピー→「📋 貼り付け」。自動で縮小して保存');
+};
+
+// ---- 追加 ----
+document.getElementById('btnSave').onclick = async ()=>{
+  const url = document.getElementById('inUrl').value.trim();
+  const name = document.getElementById('inName').value.trim();
+  const mng = document.getElementById('inMng').value.trim();
+  let platform = document.getElementById('inPlatform').value || detectPlatform(url);
+  const err = document.getElementById('err');
+  err.style.display='none';
+  if(!url || !/^https?:\/\//.test(url)){
+    err.textContent = '取引ページのURLを貼り付けてください(https〜)。';
+    err.style.display='block'; return;
+  }
+  if(!platform){
+    err.textContent = '販売サイトを選択してください(URLから判定できませんでした)。';
+    err.style.display='block'; return;
+  }
+  items.unshift({ id: Date.now(), platform, url, name, mng, photo: photoData, done:false, createdAt: Date.now() });
+  await saveAll();
+  document.getElementById('inUrl').value='';
+  document.getElementById('inName').value='';
+  document.getElementById('inMng').value='';
+  document.getElementById('inPlatform').value='';
+  photoData = null;
+  document.getElementById('photoPreview').style.display='none';
+  document.getElementById('photoClear').style.display='none';
+  photoMsg('商品画面で画像を長押し→コピー→「📋 貼り付け」。自動で縮小して保存');
+  updateDetectHint('');
+  sheetAdd.classList.remove('open');
+  tab='pending';
+  render();
+};
+
+// ---- 同期設定 ----
+const sheetSync = document.getElementById('sheetSync');
+document.getElementById('syncBadge').onclick = ()=>{
+  document.getElementById('inToken').value = lsGet(TOKEN_KEY) || '';
+  document.getElementById('inGistId').value = lsGet(GIST_KEY) || '';
+  document.getElementById('syncErr').style.display='none';
+  sheetSync.classList.add('open');
+};
+document.getElementById('btnSyncCancel').onclick = ()=> sheetSync.classList.remove('open');
+sheetSync.addEventListener('click', e=>{ if(e.target===sheetSync) sheetSync.classList.remove('open'); });
+
+document.getElementById('tokenPaste').onclick = async ()=>{
+  try{
+    const t = (await navigator.clipboard.readText()).trim();
+    if(t) document.getElementById('inToken').value = t;
+  }catch(e){}
+};
+
+function setupUrl(){
+  const payload = btoa(JSON.stringify({ t: lsGet(TOKEN_KEY), g: lsGet(GIST_KEY) }));
+  return location.origin + location.pathname + '#s=' + payload;
+}
+
+function showQr(){
+  const area = document.getElementById('qrArea');
+  const box = document.getElementById('qrBox');
+  box.innerHTML = '';
+  try{
+    new QRCode(box, { text: setupUrl(), width: 180, height: 180, correctLevel: QRCode.CorrectLevel.M });
+    area.style.display = 'block';
+  }catch(e){ /* ライブラリ未ロード時は非表示のまま */ }
+}
+
+document.getElementById('copySetupLink').onclick = async ()=>{
+  try{
+    await navigator.clipboard.writeText(setupUrl());
+    document.getElementById('copySetupLink').textContent = '✓ コピーしました(スマホに送って開くだけ)';
+  }catch(e){}
+};
+
+document.getElementById('btnSyncSave').onclick = async ()=>{
+  const token = document.getElementById('inToken').value.trim();
+  let gistId = document.getElementById('inGistId').value.trim();
+  const err = document.getElementById('syncErr');
+  err.style.display='none';
+  if(!token){
+    err.textContent = 'トークンを入力してください。'; err.style.display='block'; return;
+  }
+  lsSet(TOKEN_KEY, token);
+  try{
+    if(gistId){
+      lsSet(GIST_KEY, gistId);
+      // 既存Gistのデータを取り込む(この端末のデータよりGist側を優先)
+      const remote = await gistPull();
+      if(remote.length || !items.length){
+        items = remote;
+      }else{
+        // Gistが空でローカルにデータがある場合はローカルを送る
+        await gistPush();
+      }
+    }else{
+      gistId = await gistCreate();
+      lsSet(GIST_KEY, gistId);
+      document.getElementById('inGistId').value = gistId;
+    }
+    lsSet(CACHE_KEY, JSON.stringify(items));
+    setSyncBadge('on','✓ 同期済み');
+    render();
+    err.style.color = 'var(--ok)';
+    err.textContent = '✓ 同期しました。下のQRをスマホで読めば2台目の設定は完了です。';
+    err.style.display='block';
+    showQr();
+  }catch(e){
+    err.style.color = '#ff8a8a';
+    err.textContent = '同期に失敗:' + e.message + '(トークンの権限とIDを確認してください)';
+    err.style.display='block';
+    setSyncBadge('err','同期エラー');
+  }
+};
+
+// QR/設定リンクから開いた場合の自動セットアップ
+(function(){
+  const m = location.hash.match(/^#s=(.+)$/);
+  if(!m) return;
+  try{
+    const cfg = JSON.parse(atob(m[1]));
+    if(cfg.t && cfg.g){
+      lsSet(TOKEN_KEY, cfg.t);
+      lsSet(GIST_KEY, cfg.g);
+    }
+  }catch(e){}
+  // トークンを含むURLを履歴に残さない
+  history.replaceState(null, '', location.pathname + location.search);
+})();
+
+load();
+</script>
