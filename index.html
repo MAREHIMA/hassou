@@ -1,6 +1,12 @@
 <!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14161a">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="発送">
 <title>発送ランチャー | hima engineering</title>
 <style>
   :root{
@@ -57,6 +63,14 @@
     border:1px solid var(--line);border-radius:6px;padding:2px 7px;
   }
   .card .date{font-size:11px;color:var(--sub);margin-left:auto}
+  .card .age{font-size:11px;font-weight:700;color:var(--sub)}
+  .card .age.w1{color:var(--yahoo)}
+  .card .age.w2{color:#ff8a8a;font-weight:800}
+  #tools{display:none;gap:8px;padding:0 18px 12px;flex-wrap:wrap}
+  #tools button{
+    padding:8px 12px;border-radius:8px;border:1px solid var(--line);
+    background:var(--panel2);color:var(--sub);font-size:12px;font-weight:700;cursor:pointer;
+  }
   .card .body{display:flex;gap:12px;margin-bottom:10px;align-items:flex-start}
   .card .thumb{
     width:64px;height:64px;flex:none;border-radius:10px;object-fit:cover;
@@ -141,6 +155,13 @@
   <button id="tabPending" class="active">未発送</button>
   <button id="tabDone">発送済み</button>
 </nav>
+
+<div id="tools">
+  <button id="expCsv">📄 CSV書き出し(帳簿用)</button>
+  <button id="expJson">💾 バックアップ</button>
+  <button id="impJson">📥 復元</button>
+  <input type="file" id="impFile" accept="application/json,.json" hidden>
+</div>
 
 <main id="list"></main>
 
@@ -355,13 +376,16 @@ function detectPlatform(url){
 function fmtDate(ts){ const d=new Date(ts); return (d.getMonth()+1)+'/'+d.getDate(); }
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 
+function ageDays(ts){ return Math.floor((Date.now() - ts) / 86400000); }
+
 function render(){
   const list = document.getElementById('list');
-  const pending = items.filter(i=>!i.done);
-  const done = items.filter(i=>i.done);
+  const pending = items.filter(i=>!i.done).sort((a,b)=>a.createdAt-b.createdAt); // 古い(急ぎ)順
+  const done = items.filter(i=>i.done).sort((a,b)=>(b.doneAt||0)-(a.doneAt||0));
   document.getElementById('count').textContent = '未発送 ' + pending.length + ' 件';
   document.getElementById('tabPending').classList.toggle('active', tab==='pending');
   document.getElementById('tabDone').classList.toggle('active', tab==='done');
+  document.getElementById('tools').style.display = (tab==='done') ? 'flex' : 'none';
 
   const rows = (tab==='pending' ? pending : done);
   if(rows.length===0){
@@ -376,16 +400,26 @@ function render(){
     const doneBtn = i.done
       ? '<button class="btn undo" data-act="undo" data-id="'+i.id+'">戻す</button>'
       : '<button class="btn done" data-act="done" data-id="'+i.id+'">✓ 発送済み</button>';
+    const againBtn = '<button class="btn undo" data-act="again" data-id="'+i.id+'">🔁 もう一度</button>';
     const delBtn = '<button class="btn del" data-act="del" data-id="'+i.id+'" aria-label="削除">🗑</button>';
+    let dateHtml;
+    if(i.done){
+      dateHtml = '<span class="date">発送 '+fmtDate(i.doneAt)+'</span>';
+    }else{
+      const d = ageDays(i.createdAt);
+      const cls = d>=3 ? 'age w2' : d>=2 ? 'age w1' : 'age';
+      const label = d===0 ? '今日追加' : '経過'+d+'日' + (d>=3 ? ' ⚠' : '');
+      dateHtml = '<span class="date"><span class="'+cls+'">'+label+'</span>(追加 '+fmtDate(i.createdAt)+')</span>';
+    }
     return '<div class="card '+p.cls+'">'
       + '<div class="top"><span class="badge '+p.cls+'">'+p.label+'</span>'
       + (i.mng ? '<span class="mng">'+escapeHtml(i.mng)+'</span>' : '')
-      + '<span class="date">'+ (i.done ? '発送 '+fmtDate(i.doneAt) : '追加 '+fmtDate(i.createdAt)) +'</span></div>'
+      + dateHtml + '</div>'
       + '<div class="body">'
       + (i.photo ? '<img class="thumb" src="'+i.photo+'" alt="">' : '')
       + '<div class="name">'+escapeHtml(i.name || '(商品名なし)')+'</div>'
       + '</div>'
-      + '<div class="actions">'+ (i.done ? doneBtn+delBtn : qrBtn+doneBtn) +'</div>'
+      + '<div class="actions">'+ (i.done ? againBtn+doneBtn+delBtn : qrBtn+doneBtn) +'</div>'
       + '</div>';
   }).join('');
 }
@@ -399,6 +433,21 @@ document.getElementById('list').addEventListener('click', async e=>{
   if(b.dataset.act==='done'){ it.done=true; it.doneAt=Date.now(); }
   if(b.dataset.act==='undo'){ it.done=false; delete it.doneAt; }
   if(b.dataset.act==='del'){ items = items.filter(x=>String(x.id)!==id); }
+  if(b.dataset.act==='again'){
+    // 写真・商品名・サイトだけ引き継いで新規作成(URL・管理ナンバーは取引ごとに新規)
+    document.getElementById('inName').value = it.name || '';
+    document.getElementById('inPlatform').value = it.platform || '';
+    document.getElementById('inMng').value = '';
+    document.getElementById('inUrl').value = '';
+    photoData = it.photo || null;
+    const pv = document.getElementById('photoPreview');
+    if(photoData){ pv.src = photoData; pv.style.display='block'; document.getElementById('photoClear').style.display='inline'; }
+    else{ pv.style.display='none'; document.getElementById('photoClear').style.display='none'; }
+    photoMsg('前回の写真を引き継ぎました。新しい取引URLを貼り付けてください', true);
+    updateDetectHint('');
+    sheetAdd.classList.add('open');
+    return; // 保存は「追加する」ボタンで
+  }
   await saveAll(); render();
 });
 
@@ -541,6 +590,68 @@ document.getElementById('btnSave').onclick = async ()=>{
   render();
 };
 
+// ---- CSV・バックアップ ----
+function downloadBlob(content, filename, mime){
+  const blob = new Blob([content], {type: mime});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 5000);
+}
+function ymd(ts){
+  const d = new Date(ts);
+  return d.getFullYear() + '/' + (d.getMonth()+1) + '/' + d.getDate();
+}
+function csvCell(s){
+  s = String(s ?? '');
+  return /[",\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s;
+}
+
+document.getElementById('expCsv').onclick = ()=>{
+  const done = items.filter(i=>i.done).sort((a,b)=>(a.doneAt||0)-(b.doneAt||0));
+  if(!done.length){ alert('発送済みのデータがありません'); return; }
+  const header = ['発送日','追加日','販売サイト','商品名','管理ナンバー','取引URL'];
+  const rows = done.map(i=>[
+    ymd(i.doneAt), ymd(i.createdAt), PLATFORM[i.platform].label,
+    i.name || '', i.mng || '', i.url || ''
+  ].map(csvCell).join(','));
+  // BOM付きでExcelの文字化けを防ぐ
+  const csv = '\uFEFF' + header.join(',') + '\n' + rows.join('\n');
+  const d = new Date();
+  downloadBlob(csv, '発送記録_' + d.getFullYear() + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0') + '.csv', 'text/csv');
+};
+
+document.getElementById('expJson').onclick = ()=>{
+  const data = JSON.stringify({ app:'hassou-launcher', version:1, exported: Date.now(), items }, null, 1);
+  const d = new Date();
+  downloadBlob(data, 'hassou_backup_' + d.getFullYear() + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0') + '.json', 'application/json');
+};
+
+document.getElementById('impJson').onclick = ()=> document.getElementById('impFile').click();
+document.getElementById('impFile').addEventListener('change', e=>{
+  const f = e.target.files && e.target.files[0];
+  if(!f) return;
+  const reader = new FileReader();
+  reader.onload = async ()=>{
+    try{
+      const data = JSON.parse(reader.result);
+      const incoming = Array.isArray(data) ? data : data.items;
+      if(!Array.isArray(incoming)) throw new Error('形式が違います');
+      const existing = new Set(items.map(i=>String(i.id)));
+      const add = incoming.filter(i=>i && i.id && i.platform && !existing.has(String(i.id)));
+      if(!add.length){ alert('追加できる新しいデータはありませんでした(すべて登録済み)'); return; }
+      items = items.concat(add);
+      await saveAll(); render();
+      alert(add.length + '件を復元しました');
+    }catch(err){
+      alert('読み込めませんでした:バックアップで書き出したJSONファイルを選んでください');
+    }
+  };
+  reader.readAsText(f);
+  e.target.value = '';
+});
+
 // ---- 同期設定 ----
 const sheetSync = document.getElementById('sheetSync');
 document.getElementById('syncBadge').onclick = ()=>{
@@ -635,6 +746,12 @@ document.getElementById('btnSyncSave').onclick = async ()=>{
   // トークンを含むURLを履歴に残さない
   history.replaceState(null, '', location.pathname + location.search);
 })();
+
+
+// PWA: Service Worker登録(オフライン起動用)
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(()=>{});
+}
 
 load();
 </script>
