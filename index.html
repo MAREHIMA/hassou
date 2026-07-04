@@ -14,6 +14,8 @@
     --text:#eceef1; --sub:#9aa1ab;
     --accent:#e8c34a;
     --mercari:#ff5b5b; --yahoo:#f2b21b; --booth:#4aa8f0;
+    --mshops:#d94f7e; --yfm:#7a5cf0; --rakuma:#e6416e;
+    --minne:#58b858; --creema:#c98a4a; --other:#8a93a3;
     --ok:#4fc58a; --radius:14px;
   }
   *{box-sizing:border-box;margin:0;padding:0}
@@ -52,11 +54,23 @@
   .card.mercari{border-left-color:var(--mercari)}
   .card.yahoo{border-left-color:var(--yahoo)}
   .card.booth{border-left-color:var(--booth)}
+  .card.mshops{border-left-color:var(--mshops)}
+  .card.yfm{border-left-color:var(--yfm)}
+  .card.rakuma{border-left-color:var(--rakuma)}
+  .card.minne{border-left-color:var(--minne)}
+  .card.creema{border-left-color:var(--creema)}
+  .card.other{border-left-color:var(--other)}
   .card .top{display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap}
   .badge{font-size:11px;font-weight:800;padding:3px 9px;border-radius:999px;color:#14161a}
   .badge.mercari{background:var(--mercari)}
   .badge.yahoo{background:var(--yahoo)}
   .badge.booth{background:var(--booth)}
+  .badge.mshops{background:var(--mshops)}
+  .badge.yfm{background:var(--yfm)}
+  .badge.rakuma{background:var(--rakuma)}
+  .badge.minne{background:var(--minne)}
+  .badge.creema{background:var(--creema)}
+  .badge.other{background:var(--other)}
   .card .mng{
     font-family:ui-monospace,'SF Mono',Menlo,monospace;
     font-size:11px;font-weight:700;color:var(--accent);
@@ -184,9 +198,19 @@
       <select id="inPlatform">
         <option value="">URLから自動判定</option>
         <option value="mercari">メルカリ</option>
+        <option value="mshops">メルカリShops</option>
         <option value="yahoo">ヤフオク</option>
+        <option value="yfm">Yahoo!フリマ</option>
+        <option value="rakuma">ラクマ</option>
         <option value="booth">BOOTH</option>
+        <option value="minne">minne</option>
+        <option value="creema">Creema</option>
+        <option value="other">その他(自由入力)</option>
       </select>
+    </div>
+    <div class="field" id="customField" style="display:none">
+      <label for="inCustom">サイト名</label>
+      <input id="inCustom" placeholder="例:BASE、STORES、自社サイト など">
     </div>
     <div class="field">
       <label for="inName">商品名(メモ)</label>
@@ -264,9 +288,19 @@ const GIST_KEY  = 'gh-gist-id';
 const GIST_FILE = 'shipments.json';
 const PLATFORM = {
   mercari:{label:'メルカリ', cls:'mercari'},
+  mshops:{label:'メルカリShops', cls:'mshops'},
   yahoo:{label:'ヤフオク', cls:'yahoo'},
-  booth:{label:'BOOTH', cls:'booth'}
+  yfm:{label:'Yahoo!フリマ', cls:'yfm'},
+  rakuma:{label:'ラクマ', cls:'rakuma'},
+  booth:{label:'BOOTH', cls:'booth'},
+  minne:{label:'minne', cls:'minne'},
+  creema:{label:'Creema', cls:'creema'}
 };
+// カード表示用:プリセット or カスタム名
+function pinfo(i){
+  if(PLATFORM[i.platform]) return PLATFORM[i.platform];
+  return { label: i.customLabel || 'その他', cls: 'other' };
+}
 let items = [];
 let tab = 'pending';
 
@@ -367,11 +401,20 @@ async function load(){
 function detectPlatform(url){
   try{
     const h = new URL(url).hostname;
+    if(h.includes('mercari-shops')) return 'mshops';
     if(h.includes('mercari')) return 'mercari';
-    if(h.includes('auctions.yahoo') || h.includes('paypayfleamarket')) return 'yahoo';
+    if(h.includes('paypayfleamarket')) return 'yfm';
+    if(h.includes('auctions.yahoo')) return 'yahoo';
+    if(h.includes('fril.jp') || h.includes('rakuma')) return 'rakuma';
     if(h.includes('booth.pm')) return 'booth';
+    if(h.includes('minne.com')) return 'minne';
+    if(h.includes('creema.jp')) return 'creema';
   }catch(e){}
   return null;
+}
+// 判定できないURLのドメイン名(その他のサイト名の初期値に使う)
+function urlHost(url){
+  try{ return new URL(url).hostname.replace(/^www\./,''); }catch(e){ return ''; }
 }
 function fmtDate(ts){ const d=new Date(ts); return (d.getMonth()+1)+'/'+d.getDate(); }
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
@@ -395,7 +438,7 @@ function render(){
     return;
   }
   list.innerHTML = rows.map(i=>{
-    const p = PLATFORM[i.platform];
+    const p = pinfo(i);
     const qrBtn = '<a class="btn qr" href="'+escapeHtml(i.url)+'" target="_blank" rel="noopener">QR画面を開く →</a>';
     const doneBtn = i.done
       ? '<button class="btn undo" data-act="undo" data-id="'+i.id+'">戻す</button>'
@@ -436,7 +479,9 @@ document.getElementById('list').addEventListener('click', async e=>{
   if(b.dataset.act==='again'){
     // 写真・商品名・サイトだけ引き継いで新規作成(URL・管理ナンバーは取引ごとに新規)
     document.getElementById('inName').value = it.name || '';
-    document.getElementById('inPlatform').value = it.platform || '';
+    document.getElementById('inPlatform').value = PLATFORM[it.platform] ? it.platform : 'other';
+    document.getElementById('inCustom').value = it.customLabel || '';
+    document.getElementById('customField').style.display = PLATFORM[it.platform] ? 'none' : 'block';
     document.getElementById('inMng').value = '';
     document.getElementById('inUrl').value = '';
     photoData = it.photo || null;
@@ -463,16 +508,30 @@ sheetAdd.addEventListener('click', e=>{ if(e.target===sheetAdd) sheetAdd.classLi
 function updateDetectHint(url){
   const p = detectPlatform(url);
   const hint = document.getElementById('detectHint');
+  const customField = document.getElementById('customField');
   if(p){
     hint.textContent = '✓ ' + PLATFORM[p].label + ' のURLとして認識';
     hint.className = 'hint detected';
     document.getElementById('inPlatform').value = p;
+    customField.style.display = 'none';
+  }else if(url && /^https?:\/\//.test(url)){
+    // 未対応サイト → 「その他」としてドメイン名を初期値に
+    hint.textContent = '✓ その他のサイトとして登録します(サイト名は変更できます)';
+    hint.className = 'hint detected';
+    document.getElementById('inPlatform').value = 'other';
+    customField.style.display = 'block';
+    const c = document.getElementById('inCustom');
+    if(!c.value) c.value = urlHost(url);
   }else{
     hint.textContent = '共有メニュー等でURLをコピー →「📋」で貼り付け。サイトは自動判定';
     hint.className = 'hint';
+    customField.style.display = 'none';
   }
 }
 document.getElementById('inUrl').addEventListener('input', e=> updateDetectHint(e.target.value.trim()));
+document.getElementById('inPlatform').addEventListener('change', e=>{
+  document.getElementById('customField').style.display = (e.target.value==='other') ? 'block' : 'none';
+});
 
 document.getElementById('urlPaste').onclick = async ()=>{
   if(!navigator.clipboard || !navigator.clipboard.readText){
@@ -570,16 +629,18 @@ document.getElementById('btnSave').onclick = async ()=>{
     err.textContent = '取引ページのURLを貼り付けてください(https〜)。';
     err.style.display='block'; return;
   }
-  if(!platform){
-    err.textContent = '販売サイトを選択してください(URLから判定できませんでした)。';
-    err.style.display='block'; return;
-  }
-  items.unshift({ id: Date.now(), platform, url, name, mng, photo: photoData, done:false, createdAt: Date.now() });
+  if(!platform) platform = 'other'; // 未対応サイトは「その他」として登録
+  const customLabel = (platform==='other')
+    ? (document.getElementById('inCustom').value.trim() || urlHost(url) || 'その他')
+    : '';
+  items.unshift({ id: Date.now(), platform, customLabel, url, name, mng, photo: photoData, done:false, createdAt: Date.now() });
   await saveAll();
   document.getElementById('inUrl').value='';
   document.getElementById('inName').value='';
   document.getElementById('inMng').value='';
   document.getElementById('inPlatform').value='';
+  document.getElementById('inCustom').value='';
+  document.getElementById('customField').style.display='none';
   photoData = null;
   document.getElementById('photoPreview').style.display='none';
   document.getElementById('photoClear').style.display='none';
@@ -613,7 +674,7 @@ document.getElementById('expCsv').onclick = ()=>{
   if(!done.length){ alert('発送済みのデータがありません'); return; }
   const header = ['発送日','追加日','販売サイト','商品名','管理ナンバー','取引URL'];
   const rows = done.map(i=>[
-    ymd(i.doneAt), ymd(i.createdAt), PLATFORM[i.platform].label,
+    ymd(i.doneAt), ymd(i.createdAt), pinfo(i).label,
     i.name || '', i.mng || '', i.url || ''
   ].map(csvCell).join(','));
   // BOM付きでExcelの文字化けを防ぐ
