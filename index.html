@@ -458,10 +458,44 @@ function schedulePush(){
   if(!syncEnabled()) return;
   clearTimeout(pushTimer);
   pushTimer = setTimeout(async ()=>{
+    pushTimer = null;
     try{ await gistPush(); setSyncBadge('on','✓ 同期'); }
     catch(e){ setSyncBadge('err','エラー'); console.error(e); }
   }, 800);
 }
+
+// 未送信の変更を即座に送る(アプリを閉じる直前用)
+function flushPushBeacon(){
+  if(!syncEnabled() || !pushTimer) return;
+  clearTimeout(pushTimer); pushTimer = null;
+  const body = JSON.stringify({ files: { [GIST_FILE]: { content: JSON.stringify(items) } } });
+  fetch('https://api.github.com/gists/' + lsGet(GIST_KEY), {
+    method:'PATCH', headers: ghHeaders(), body, keepalive:true
+  }).catch(()=>{});
+}
+
+// Gistから最新を取り直す(復帰時用)。未送信の変更があれば先に送ってから取得
+async function refreshFromGist(){
+  if(!syncEnabled()) return;
+  setSyncBadge('on','同期中');
+  try{
+    if(pushTimer){ clearTimeout(pushTimer); pushTimer = null; await gistPush(); }
+    items = await gistPull();
+    lsSet(CACHE_KEY, JSON.stringify(items));
+    setSyncBadge('on','✓ 同期');
+    render();
+  }catch(e){
+    setSyncBadge('err','エラー');
+    console.error(e);
+  }
+}
+
+// ホーム画面から復帰したとき・タブに戻ってきたときに自動で再同期
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState === 'visible') refreshFromGist();
+  else flushPushBeacon();
+});
+window.addEventListener('pagehide', flushPushBeacon);
 
 async function saveAll(){
   lsSet(CACHE_KEY, JSON.stringify(items));
